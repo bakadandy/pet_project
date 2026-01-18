@@ -8,6 +8,13 @@ from tasks.models import Task
 from tasks.serializers import TaskSerializer
 from tasks.permissions import IsOwner
 
+"""
+Rule you must internalize
+
+Permissions live in permission classes.
+Business logic lives in views.
+Never duplicate permission checks.
+"""
 
 class TaskViewSet(ModelViewSet):
     serializer_class = TaskSerializer
@@ -18,6 +25,21 @@ class TaskViewSet(ModelViewSet):
 
     def perform_create(self, serializer): # injects user safely (no client control)
         serializer.save(user=self.request.user)
+
+        # deleting the cache after saving new task
+        self._invalidate_cache()
+
+    def perform_update(self, serializer):
+        serializer.save(user=self.request.user)
+
+        # deleting the cache after updating the task
+        self._invalidate_cache()
+
+    def perform_destroy(self, instance):
+        super().perform_destroy(instance)
+
+        # deleting cache after deleting the task
+        self._invalidate_cache()
 
     def list(self, request, *args, **kwargs):
         user_id = request.user.id
@@ -33,3 +55,7 @@ class TaskViewSet(ModelViewSet):
 
         cache.set(cached_key, data, 60)
         return Response(data)
+
+    # method to delete cache
+    def _invalidate_cache(self):
+        cache.delete(f"tasks:user:{self.request.user.id}")
